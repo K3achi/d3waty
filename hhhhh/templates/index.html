@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة دعوتي - لوحة التحكم الاحترافية</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .preview-container { position: relative; display: inline-block; max-width: 100%; border: 2px dashed #ccc; background: #fff; overflow: hidden; }
+        #template-preview { max-width: 100%; height: auto; display: block; }
+        #qr-box { position: absolute; border: 2px solid #00d25b; background-color: rgba(0, 210, 91, 0.3); display: none; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container">
+        <span class="navbar-brand mb-0 h1">✨ منصة دعوتي الذكية (SaaS Dashboard)</span>
+    </div>
+</nav>
+
+<div class="container bg-white p-4 rounded shadow-sm mb-4">
+    <div class="row">
+        <!-- قسم التحكم -->
+        <div class="col-md-5 border-left">
+            <h4 class="mb-3 text-primary">1. إعدادات المناسبة والضيوف</h4>
+            <form action="/generate" method="POST" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label font-weight-bold">رفع قالب الدعوة (صورة):</label>
+                    <input type="file" name="template" id="template-input" class="form-control" accept="image/*" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">قائمة الضيوف (اسم واحد في كل سطر):</label>
+                    <textarea name="guests" class="form-control" rows="5" placeholder="أحمد الغامدي&#10;خالد سعيد&#10;سارة العبدالله" required></textarea>
+                </div>
+                
+                <h5 class="mt-4 text-secondary">⚙️ أبعاد وموقع الـ QR Code</h5>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label">الإحداثي الأفقي (X):</label>
+                        <input type="number" name="qr_x" id="qr_x" class="form-control" value="100">
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label">الإحداثي الرأسي (Y):</label>
+                        <input type="number" name="qr_y" id="qr_y" class="form-control" value="100">
+                    </div>
+                    <div class="col-12 mb-3">
+                        <label class="form-label">حجم مربع الباركود (بكسل):</label>
+                        <input type="number" name="qr_size" id="qr_size" class="form-control" value="120">
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-success w-100 py-2 mt-2 font-weight-bold">🔥 توليد الكروت وتحميل ملف ZIP</button>
+            </form>
+        </div>
+
+        <!-- قسم المعاينة الحية -->
+        <div class="col-md-7 text-center">
+            <h4 class="mb-3 text-secondary text-start">2. المعاينة التفاعلية الحية</h4>
+            <div class="preview-container">
+                <img id="template-preview" src="#" alt="قم برفع صورة لرؤية المعاينة هنا">
+                <div id="qr-box"></div>
+            </div>
+            <p class="text-muted small mt-2">المربع الأخضر يوضح موضع الباركود النهائي الذي سيتم طباعته على الكرت.</p>
+        </div>
+    </div>
+</div>
+
+<!-- لوحة إدارة الحضور والضيوف اللحظية -->
+<div class="container bg-white p-4 rounded shadow-sm mb-5">
+    <h4 class="mb-3 text-dark">📊 نظام إدارة الضيوف والاستقبال (Live Status)</h4>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>معرف الضيف</th>
+                    <th>الاسم كاملاً</th>
+                    <th>حالة الدخول</th>
+                    <th>عدد محاولات المسح</th>
+                </tr>
+            </thead>
+            <tbody id="guests-table-body">
+                <tr>
+                    <td colspan="4" class="text-center text-muted">لا يوجد ضيوف مضافين حالياً للمناسبة.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // نظام المعاينة الحية للموقع والأبعاد
+    const templateInput = document.getElementById('template-input');
+    const previewImg = document.getElementById('template-preview');
+    const qrBox = document.getElementById('qr-box');
+    
+    const qrXInput = document.getElementById('qr_x');
+    const qrYInput = document.getElementById('qr_y');
+    const qrSizeInput = document.getElementById('qr_size');
+
+    templateInput.addEventListener('change', function() {
+        const file = this.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImg.src = e.target.value; // تحديث تمويهي احتياطي
+                previewImg.setAttribute('src', e.target.result);
+                qrBox.style.display = 'block';
+                updateQrBoxPosition();
+            }
+            reader.readAsDataURL(file);
+        }
+    });
+
+    function updateQrBoxPosition() {
+        qrBox.style.left = qrXInput.value + 'px';
+        qrBox.style.top = qrYInput.value + 'px';
+        qrBox.style.width = qrSizeInput.value + 'px';
+        qrBox.style.height = qrSizeInput.value + 'px';
+    }
+
+    [qrXInput, qrYInput, qrSizeInput].forEach(input => {
+        input.addEventListener('input', updateQrBoxPosition);
+    });
+
+    // جلب قائمة الضيوف وتحديث حالتها دورياً عبر الـ API
+    function loadGuests() {
+        fetch('/api/guests')
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.getElementById('guests-table-body');
+                if(data.length === 0) return;
+                
+                tbody.innerHTML = '';
+                data.forEach(g => {
+                    const statusBadge = g.is_checked_in 
+                        ? '<span class="badge bg-success">🟢 تم الحضور</span>' 
+                        : '<span class="badge bg-warning text-dark">⏳ لم يحضر بعد</span>';
+                    
+                    const row = `<tr>
+                        <td><code>${g.id}</code></td>
+                        <td><strong>${g.name}</strong></td>
+                        <td>${statusBadge}</td>
+                        <td><span class="badge bg-secondary">${g.scan_count} مرات</span></td>
+                    </tr>`;
+                    tbody.innerHTML += row;
+                });
+            });
+    }
+
+    // تحديث الجدول تلقائياً كل 4 ثوانٍ لمحاكاة الاستقبال الحي للبوابة
+    setInterval(loadGuests, 4000);
+    window.onload = loadGuests;
+</script>
+</body>
+</html>
