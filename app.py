@@ -30,16 +30,15 @@ def get_central_conn():
     conn.row_factory = sqlite3.Row
     return conn
 
-# ✅ إصلاح جذري: جعل قاعدة بيانات العميل تنشئ الجدول تلقائياً فور الاتصال لمنع خطأ no such table
+# تهيئة وقراءة قاعدة بيانات العميل مع التأكد من وجود الجدول دائماً
 def get_tenant_conn(username):
     tenant_db = os.path.join(DB_FOLDER, f'tenant_{username}.db')
     conn = sqlite3.connect(tenant_db)
     conn.row_factory = sqlite3.Row
     
-    # التأكد من وجود الجدول دائماً لأي مستخدم (أدمن أو عميل)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS guests 
-                 (id TEXT PRIMARY KEY, name TEXT, is_checked_in INTEGER DEFAULT 0, scan_count INTEGER DEFAULT 0)''')
+    # التأكد التلقائي من وجود الجدول لأي مستخدم (أدمن أو عميل) لمنع خطأ no such table
+    conn.execute('''CREATE TABLE IF NOT EXISTS guests 
+                    (id TEXT PRIMARY KEY, name TEXT, is_checked_in INTEGER DEFAULT 0, scan_count INTEGER DEFAULT 0)''')
     conn.commit()
     return conn
 
@@ -181,13 +180,9 @@ def add_account():
             c.execute("INSERT INTO users (id, username, password_hash, phone, is_admin) VALUES (?, ?, ?, ?, 0)",
                       (str(uuid.uuid4()), new_username, hashed_pw, new_phone))
             conn.commit()
-            # تأكيد تهيئة قاعدة البيانات المعزولة للعميل الجديد
-            tenant_db = os.path.join(DB_FOLDER, f'tenant_{new_username}.db')
-            t_conn = sqlite3.connect(tenant_db)
-            t_c = t_conn.cursor()
-            t_c.execute('''CREATE TABLE IF NOT EXISTS guests 
-                         (id TEXT PRIMARY KEY, name TEXT, is_checked_in INTEGER DEFAULT 0, scan_count INTEGER DEFAULT 0)''')
-            t_conn.commit()
+            
+            # تهيئة مبدئية لقاعدة بيانات المستأجر الجديد لضمان جاهزيتها
+            t_conn = get_tenant_conn(new_username)
             t_conn.close()
             
             flash(f"تم إنشاء حساب العميل بنجاح وعزل قاعدة بياناته: {new_username}", "success")
@@ -203,11 +198,15 @@ def get_guests():
     if 'username' not in session:
         return jsonify([])
     conn = get_tenant_conn(session['username'])
-    c = conn.cursor()
-    c.execute("SELECT id, name, is_checked_in, scan_count FROM guests")
-    rows = c.fetchall()
-    conn.close()
-    return jsonify([{"id": r['id'], "name": r['name'], "is_checked_in": bool(r['is_checked_in']), "scan_count": r['scan_count']} for r in rows])
+    try:
+        c = conn.cursor()
+        c.execute("SELECT id, name, is_checked_in, scan_count FROM guests")
+        rows = c.fetchall()
+        return jsonify([{"id": r['id'], "name": r['name'], "is_checked_in": bool(r['is_checked_in']), "scan_count": r['scan_count']} for r in rows])
+    except Exception:
+        return jsonify([])
+    finally:
+        conn.close()
 
 @app.route('/generate', methods=['POST'])
 def generate():
@@ -222,7 +221,7 @@ def generate():
         
     guests_raw = request.form.get('guests', '')
     
-    # ✅ إصلاح وحماية: التحقق من الحقول الرقمية وتجنب الانهيار في حال كانت فارغة
+    # حماية وحصر مدخلات الإحداثيات والمقاسات لمنع الانهيار
     qr_x_raw = request.form.get('qr_x', '0').strip()
     qr_y_raw = request.form.get('qr_y', '0').strip()
     qr_size_raw = request.form.get('qr_size', '150').strip()
@@ -238,78 +237,87 @@ def generate():
     template_path = os.path.join(app.config['UPLOAD_FOLDER'], f"template_{session['username']}.png")
     file.save(template_path)
     
-    conn = get_tenant_conn(session['username'])
-    c = conn.cursor()
-    c.execute("DELETE FROM guests") 
+    # ✅ حل مشكلة سياق الطلب ( Flask Request Context ) باستدعائه داخل الدالة مباشرة
+    host_url = request.host_url
     
+    conn = get_tenant_conn(session['username'])
     generated_files = []
     temp_invites_dir = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{session['username']}")
     os.makedirs(temp_invites_dir, exist_ok=True)
     
     try:
+        c = conn.cursor()
+        c.execute("DELETE FROM guests") # مسح الأسماء السابقة لبدء الدفعة الجديدة
+        
         base_template = Image.open(template_path).convert("RGBA")
+        
+        for name in guest_names:
+            guest_id = str(uuid.uuid4())[:8]
+            c.execute("INSERT INTO guests (id, name) VALUES (?, ?)", (guest_id, name))
+            
+            verify_url = f"{host_url}verify/{session['username']}/{guest_id}"
+            
+            qr = qrcode.QRCode(box_size=10, border=1)
+            qr.add_data(verify_url)
+            qr.make(fit=True)
+            qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGBA")
+            qr_img = qr_img.resize((qr_size, qr_size))
+            
+            card_copy = base_template.copy()
+            card_copy.paste(qr_img, (qr_x, qr_y), qr_img)
+            
+            file_name = os.path.join(temp_invites_dir, f"دعوة_{name}.png")
+            card_copy.save(file_name)
+            generated_files.append(file_name)
+            
+        conn.commit()
     except Exception as e:
-        conn.close()
-        return f"خطأ في معالجة ملف الصورة المرفوع: {str(e)}", 400
-        
-    host_url = request.host_url
-
-    for name in guest_names:
-        guest_id = str(uuid.uuid4())[:8]
-        c.execute("INSERT INTO guests (id, name) VALUES (?, ?)", (guest_id, name))
-        
-        verify_url = f"{host_url}verify/{session['username']}/{guest_id}"
-        
-        qr = qrcode.QRCode(box_size=10, border=1)
-        qr.add_data(verify_url)
-        qr.make(fit=True)
-        qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGBA")
-        qr_img = qr_img.resize((qr_size, qr_size))
-        
-        card_copy = base_template.copy()
-        card_copy.paste(qr_img, (qr_x, qr_y), qr_img)
-        
-        file_name = os.path.join(temp_invites_dir, f"دعوة_{name}.png")
-        card_copy.save(file_name)
-        generated_files.append(file_name)
-        
-    conn.commit()
-    conn.close()
+        conn.rollback()
+        return f"حدث خطأ أثناء معالجة الصور: {str(e)}", 500
+    finally:
+        conn.close() # التأكيد على إغلاق اتصال قاعدة البيانات منعاً للـ Database Lock
     
     zip_path = os.path.join(app.config['UPLOAD_FOLDER'], f"invitations_{session['username']}.zip")
     with zipfile.ZipFile(zip_path, 'w') as zipf:
         for f in generated_files:
-            zipf.write(f, os.path.basename(f))
-            os.remove(f)
-            
+            if os.path.exists(f):
+                zipf.write(f, os.path.basename(f))
+                os.remove(f)
+                
     if os.path.exists(temp_invites_dir):
-        os.rmdir(temp_invites_dir)
-        
+        try:
+            os.rmdir(temp_invites_dir)
+        except Exception:
+            pass
+            
     return send_file(zip_path, as_attachment=True)
 
 @app.route('/verify/<tenant_username>/<guest_id>')
 def verify_guest(tenant_username, guest_id):
     conn = get_tenant_conn(tenant_username)
-    c = conn.cursor()
-    c.execute("SELECT name, is_checked_in, scan_count FROM guests WHERE id = ?", (guest_id,))
-    guest = c.fetchone()
-    
-    if not guest:
+    try:
+        c = conn.cursor()
+        c.execute("SELECT name, is_checked_in, scan_count FROM guests WHERE id = ?", (guest_id,))
+        guest = c.fetchone()
+        
+        if not guest:
+            return render_template('verify.html', status="invalid", name="")
+            
+        new_scan_count = guest['scan_count'] + 1
+        
+        if guest['is_checked_in'] == 0:
+            c.execute("UPDATE guests SET is_checked_in = 1, scan_count = ? WHERE id = ?", (new_scan_count, guest_id))
+            status = "success"
+        else:
+            c.execute("UPDATE guests SET scan_count = ? WHERE id = ?", (new_scan_count, guest_id))
+            status = "duplicate"
+            
+        conn.commit()
+        return render_template('verify.html', status=status, name=guest['name'], scan_count=new_scan_count)
+    except Exception as e:
+        return f"خطأ داخلي في نظام التحقق: {str(e)}", 500
+    finally:
         conn.close()
-        return render_template('verify.html', status="invalid", name="")
-        
-    new_scan_count = guest['scan_count'] + 1
-    
-    if guest['is_checked_in'] == 0:
-        c.execute("UPDATE guests SET is_checked_in = 1, scan_count = ? WHERE id = ?", (new_scan_count, guest_id))
-        status = "success"
-    else:
-        c.execute("UPDATE guests SET scan_count = ? WHERE id = ?", (new_scan_count, guest_id))
-        status = "duplicate"
-        
-    conn.commit()
-    conn.close()
-    return render_template('verify.html', status=status, name=guest['name'], scan_count=new_scan_count)
 
 if __name__ == '__main__':
     app.run(debug=True)
