@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بوابة التحقق الذكية - دعوتي</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <style>
+        body { height: 100vh; display: flex; align-items: center; justify-content: center; font-family: sans-serif; }
+        .card-verify { width: 100%; max-width: 450px; border: none; border-radius: 20px; text-align: center; padding: 35px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .icon-state { font-size: 70px; margin-bottom: 15px; }
+    </style>
+</head>
+<body class="bg-light">
+
+<div class="card card-verify bg-white">
+    {% if status == 'success' %}
+        <div class="icon-state text-success">✅</div>
+        <h2 class="text-success mb-3">أهلاً بك، تفضل!</h2>
+        <p class="fs-4">تم تسجيل دخول الضيف بنجاح:</p>
+        <div class="alert alert-success fs-3 font-weight-bold">{{ name }}</div>
+        <p class="text-muted">الوضع: دعوة صالحة ومؤكدة لأول مرة.</p>
+
+    {% elif status == 'duplicate' %}
+        <div class="icon-state text-warning">⚠️</div>
+        <h2 class="text-warning mb-3">تنبيه: ممسوح مسبقاً!</h2>
+        <p class="fs-5">الكرت الخاص بالضيف تم استخدامه للدخول من قبل:</p>
+        <div class="alert alert-warning fs-4">{{ name }}</div>
+        <p class="text-danger font-weight-bold">إجمالي عدد مرات قراءة الكود: {{ scan_count }}</p>
+        <small class="text-muted">يرجى التأكد من هوية الشخص الحامل للكرت لمنع التزوير.</small>
+
+    {% else %}
+        <div class="icon-state text-danger">❌</div>
+        <h2 class="text-danger mb-3">رمز غير صالح!</h2>
+        <div class="alert alert-danger fs-5">تنبيه: كود الدعوة هذا مزور أو لا ينتمي للمنظومة التابعة للمنصة.</div>
+        <p class="text-muted">يرجى منع حامل الكرت من الدخول ومراجعة الإدارة.</p>
+    {% endif %}
+    
+    <hr class="my-4">
+    <small class="text-secondary">نظام حماية وإدارة المناسبات الذكي بواسطة <b>دعوتي</b></small>
+</div>
+
+</body>
+</html>
