@@ -11,6 +11,14 @@
         #template-preview { max-width: 100%; height: auto; display: block; }
         #qr-box { position: absolute; border: 2px solid #00d25b; background-color: rgba(0, 210, 91, 0.3); display: none; pointer-events: none; }
     </style>
+    <!-- أضف هذا السطر في أعلى جسم لوحة التحكم للترحيب والملاحة -->
+<div class="container mt-3 text-end">
+    <span class="badge bg-secondary p-2 fs-6">مرحباً بك: {{ username }}</span>
+    {% if is_admin == 1 %}
+        <a href="/admin/add-account" class="btn btn-danger btn-sm ms-2">⚙️ لوحة إضافة الحسابات (خاص بالمالك)</a>
+    {% endif %}
+    <a href="/logout" class="btn btn-outline-dark btn-sm ms-2">تسجيل الخروج</a>
+</div>
 </head>
 <body>
 

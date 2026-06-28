@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>إضافة مستخدم جديد - الإدارة</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+</head>
+<body class="bg-light">
+<div class="container mt-5" style="max-width: 600px;">
+    <div class="card p-4 shadow-sm border-0">
+        <h3 class="text-primary mb-3">👤 إضافة حساب عميل جديد للمنصة</h3>
+        <p class="text-muted">هذه الصلاحية حصرية لحساب <b>RAED_ADMIN</b> فقط لا غير لتسجيل العملاء الجدد يدوياً.</p>
+        <hr>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} p-2 text-center">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+        <form method="POST">
+            <div class="mb-3">
+                <label class="form-label">اسم العميل الجديد (بالإنجليزي وبدون مسافات):</label>
+                <input type="text" name="new_username" class="form-control" placeholder="مثال: khaled_photography" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">رقم هاتف العميل (للتأكيد واسترجاع الحساب):</label>
+                <input type="text" name="new_phone" class="form-control" placeholder="05xxxxxxxx" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">تعيين كلمة المرور الأولية:</label>
+                <input type="password" name="new_password" class="form-control" required>
+                <div class="form-text text-muted small">شروط الأمان المفعلة تلقائياً: لا تقل عن 8 خانات، تشمل حروف كبيرة (A-Z) وصغيرة (a-z) وأرقام ورموز خاصة مثل (_ أو @).</div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2">✨ إنشاء الحساب وتأسيس قاعدة بيانات منعزلة</button>
+        </form>
+        <div class="mt-4 text-center">
+            <a href="/dashboard" class="btn btn-outline-secondary btn-sm">العودة للوحة التحكم الرئيسية</a>
+        </div>
+    </div>
+</div>
+</body>
+</html>
