@@ -9,12 +9,17 @@ from PIL import Image
 import qrcode
 
 app = Flask(__name__)
-# تغيير الـ Secret Key لمستوى حماية عالٍ وتأمين الجلسات ضد الاختراق
+# مفتاح أمان الجلسات وحمايتها
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'super-secure-suite-dawaty-2026-key')
 app.config['PERMANENT_SESSION_LIFETIME'] = 1800 # تنتهي الجلسة تلقائياً بعد 30 دقيقة خمول
 
 UPLOAD_FOLDER = 'uploads'
 DB_FOLDER = 'databases'
+
+# ✅ إصلاح الخطأ: تعيين المجلدات داخل إعدادات Flask لمنع خطأ الـ KeyError (500)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['DB_FOLDER'] = DB_FOLDER
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(DB_FOLDER, exist_ok=True)
 
@@ -26,14 +31,12 @@ def get_central_conn():
     return conn
 
 def get_tenant_conn(username):
-    # ميزة قاعدة بيانات خاصة ومستقلة تماماً لكل حساب لمنع تسريب أو تداخل البيانات
     tenant_db = os.path.join(DB_FOLDER, f'tenant_{username}.db')
     conn = sqlite3.connect(tenant_db)
     conn.row_factory = sqlite3.Row
     return conn
 
 def init_databases():
-    # 1. تهيئة قاعدة البيانات المركزية للمستخدمين
     conn = get_central_conn()
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users (
@@ -44,7 +47,6 @@ def init_databases():
                     is_admin INTEGER DEFAULT 0
                  )''')
     
-    # 2. زراعة حساب المالك الافتراضي (RAED_ADMIN) بحماية تشفيرية متقدمة
     c.execute("SELECT * FROM users WHERE username = 'RAED_ADMIN'")
     if not c.fetchone():
         hashed_pw = generate_password_hash('Rx0576511313')
@@ -54,7 +56,6 @@ def init_databases():
     conn.close()
 
 def init_tenant_db(username):
-    # تهيئة جدول الضيوف داخل قاعدة البيانات الخاصة بالمستأجر الجديد
     conn = get_tenant_conn(username)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS guests 
@@ -64,7 +65,6 @@ def init_tenant_db(username):
 
 init_databases()
 
-# دالة التحقق من قوة كلمة المرور (أغلب خيارات كلمات المرور المشهورة)
 def is_password_strong(password):
     if len(password) < 8:
         return False, "يجب أن تتكون كلمة المرور من 8 خانات على الأقل."
@@ -78,7 +78,6 @@ def is_password_strong(password):
         return False, "يجب أن تحتوي كلمة المرور على رمز خاص واحد على الأقل."
     return True, ""
 
-# --- بوابات التحقق والتحكم بأمان النظام ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -88,15 +87,13 @@ def login():
         
         conn = get_central_conn()
         c = conn.cursor()
-        # استخدام الاستعلامات المجهزة (Parameterized Queries) للحماية من ثغرات SQL Injection
         c.execute("SELECT * FROM users WHERE username = ?", (username,))
         user = c.fetchone()
         conn.close()
         
         if user and check_password_hash(user['password_hash'], password) and user['phone'] == phone:
-            # محاكاة رمز التحقق عبر الهاتف (OTP) لضمان حماية الطبقة الثانية
             session['pending_user'] = user['username']
-            session['generated_otp'] = "123456" # رمز محاكاة ثابت للـ OTP يمكنك استقباله بالخطوة التالية
+            session['generated_otp'] = "123456" 
             flash("تم إرسال رمز التحقق إلى رقم هاتفك المحمول المحفوظ.", "info")
             return redirect(url_for('verify_otp'))
         else:
@@ -156,7 +153,6 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-# --- لوحة التحكم المخصصة للمستأجرين ---
 @app.route('/')
 @app.route('/dashboard')
 def dashboard():
@@ -164,10 +160,8 @@ def dashboard():
         return redirect(url_for('login'))
     return render_template('index.html', username=session['username'], is_admin=session['is_admin'])
 
-# --- شاشة إضافة الحسابات الخاصة بـ RAED_ADMIN فقط لا غير ---
 @app.route('/admin/add-account', methods=['GET', 'POST'])
 def add_account():
-    # منع الدخول لغير حساب المالك تماماً لرفع مستويات الأمان
     if 'username' not in session or session.get('is_admin') != 1:
         return "غير مسموح بالدخول، صلاحية المالك فقط لا غير.", 403
         
@@ -188,7 +182,7 @@ def add_account():
             c.execute("INSERT INTO users (id, username, password_hash, phone, is_admin) VALUES (?, ?, ?, ?, 0)",
                       (str(uuid.uuid4()), new_username, hashed_pw, new_phone))
             conn.commit()
-            init_tenant_db(new_username) # بناء قاعدة بيانات منعزلة وخاصة بالحساب الجديد فوراً
+            init_tenant_db(new_username)
             flash(f"تم إنشاء حساب العميل بنجاح وعزل قاعدة بياناته: {new_username}", "success")
         except sqlite3.IntegrityError:
             flash("فشل الإنشاء: اسم المستخدم أو رقم الهاتف مسجل مسبقاً بنظام المنصة!", "danger")
@@ -197,7 +191,6 @@ def add_account():
             
     return render_template('add_account.html')
 
-# --- محرك معالجة البيانات وتوليد البطاقات والتحقق مع قاعدة البيانات المنعزلة ---
 @app.route('/api/guests', methods=['GET'])
 def get_guests():
     if 'username' not in session:
@@ -231,7 +224,7 @@ def generate():
     
     conn = get_tenant_conn(session['username'])
     c = conn.cursor()
-    c.execute("DELETE FROM guests") # مسح الكروت السابقة للمستأجر الحالي داخل بيئته المنعزلة فقط
+    c.execute("DELETE FROM guests") 
     
     generated_files = []
     temp_invites_dir = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{session['username']}")
@@ -273,7 +266,6 @@ def generate():
 
 @app.route('/verify/<tenant_username>/<guest_id>')
 def verify_guest(tenant_username, guest_id):
-    # مسار التحقق يقرأ من قاعدة بيانات العميل المالك للكرت لمنع أي تلاعب أو ثغرات تجاوز الصلاحيات
     conn = get_tenant_conn(tenant_username)
     c = conn.cursor()
     c.execute("SELECT name, is_checked_in, scan_count FROM guests WHERE id = ?", (guest_id,))
