@@ -16,7 +16,7 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 1800 # تنتهي الجلسة تلق
 UPLOAD_FOLDER = 'uploads'
 DB_FOLDER = 'databases'
 
-# ✅ إصلاح الخطأ: تعيين المجلدات داخل إعدادات Flask لمنع خطأ الـ KeyError (500)
+# تعيين المجلدات داخل إعدادات Flask لمنع خطأ الـ KeyError (500)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['DB_FOLDER'] = DB_FOLDER
 
@@ -30,10 +30,17 @@ def get_central_conn():
     conn.row_factory = sqlite3.Row
     return conn
 
+# ✅ إصلاح جذري: جعل قاعدة بيانات العميل تنشئ الجدول تلقائياً فور الاتصال لمنع خطأ no such table
 def get_tenant_conn(username):
     tenant_db = os.path.join(DB_FOLDER, f'tenant_{username}.db')
     conn = sqlite3.connect(tenant_db)
     conn.row_factory = sqlite3.Row
+    
+    # التأكد من وجود الجدول دائماً لأي مستخدم (أدمن أو عميل)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS guests 
+                 (id TEXT PRIMARY KEY, name TEXT, is_checked_in INTEGER DEFAULT 0, scan_count INTEGER DEFAULT 0)''')
+    conn.commit()
     return conn
 
 def init_databases():
@@ -52,14 +59,6 @@ def init_databases():
         hashed_pw = generate_password_hash('Rx0576511313')
         c.execute("INSERT INTO users (id, username, password_hash, phone, is_admin) VALUES (?, ?, ?, ?, 1)",
                   (str(uuid.uuid4()), 'RAED_ADMIN', hashed_pw, '0576511313'))
-    conn.commit()
-    conn.close()
-
-def init_tenant_db(username):
-    conn = get_tenant_conn(username)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS guests 
-                 (id TEXT PRIMARY KEY, name TEXT, is_checked_in INTEGER DEFAULT 0, scan_count INTEGER DEFAULT 0)''')
     conn.commit()
     conn.close()
 
@@ -182,7 +181,15 @@ def add_account():
             c.execute("INSERT INTO users (id, username, password_hash, phone, is_admin) VALUES (?, ?, ?, ?, 0)",
                       (str(uuid.uuid4()), new_username, hashed_pw, new_phone))
             conn.commit()
-            init_tenant_db(new_username)
+            # تأكيد تهيئة قاعدة البيانات المعزولة للعميل الجديد
+            tenant_db = os.path.join(DB_FOLDER, f'tenant_{new_username}.db')
+            t_conn = sqlite3.connect(tenant_db)
+            t_c = t_conn.cursor()
+            t_c.execute('''CREATE TABLE IF NOT EXISTS guests 
+                         (id TEXT PRIMARY KEY, name TEXT, is_checked_in INTEGER DEFAULT 0, scan_count INTEGER DEFAULT 0)''')
+            t_conn.commit()
+            t_conn.close()
+            
             flash(f"تم إنشاء حساب العميل بنجاح وعزل قاعدة بياناته: {new_username}", "success")
         except sqlite3.IntegrityError:
             flash("فشل الإنشاء: اسم المستخدم أو رقم الهاتف مسجل مسبقاً بنظام المنصة!", "danger")
@@ -210,10 +217,19 @@ def generate():
         return "يرجى رفع قالب الدعوة أولاً", 400
         
     file = request.files['template']
+    if file.filename == '':
+        return "يرجى اختيار ملف صورة قالب الدعوة", 400
+        
     guests_raw = request.form.get('guests', '')
-    qr_x = int(request.form.get('qr_x', 0))
-    qr_y = int(request.form.get('qr_y', 0))
-    qr_size = int(request.form.get('qr_size', 150))
+    
+    # ✅ إصلاح وحماية: التحقق من الحقول الرقمية وتجنب الانهيار في حال كانت فارغة
+    qr_x_raw = request.form.get('qr_x', '0').strip()
+    qr_y_raw = request.form.get('qr_y', '0').strip()
+    qr_size_raw = request.form.get('qr_size', '150').strip()
+    
+    qr_x = int(qr_x_raw) if qr_x_raw.isdigit() else 0
+    qr_y = int(qr_y_raw) if qr_y_raw.isdigit() else 0
+    qr_size = int(qr_size_raw) if qr_size_raw.isdigit() else 150
     
     guest_names = [name.strip() for name in guests_raw.split('\n') if name.strip()]
     if not guest_names:
@@ -230,7 +246,12 @@ def generate():
     temp_invites_dir = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{session['username']}")
     os.makedirs(temp_invites_dir, exist_ok=True)
     
-    base_template = Image.open(template_path).convert("RGBA")
+    try:
+        base_template = Image.open(template_path).convert("RGBA")
+    except Exception as e:
+        conn.close()
+        return f"خطأ في معالجة ملف الصورة المرفوع: {str(e)}", 400
+        
     host_url = request.host_url
 
     for name in guest_names:
@@ -261,7 +282,9 @@ def generate():
             zipf.write(f, os.path.basename(f))
             os.remove(f)
             
-    os.rmdir(temp_invites_dir)
+    if os.path.exists(temp_invites_dir):
+        os.rmdir(temp_invites_dir)
+        
     return send_file(zip_path, as_attachment=True)
 
 @app.route('/verify/<tenant_username>/<guest_id>')
@@ -272,6 +295,7 @@ def verify_guest(tenant_username, guest_id):
     guest = c.fetchone()
     
     if not guest:
+        conn.close()
         return render_template('verify.html', status="invalid", name="")
         
     new_scan_count = guest['scan_count'] + 1
