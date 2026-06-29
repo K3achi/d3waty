@@ -7,9 +7,40 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
     <style>
         body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .preview-container { position: relative; display: inline-block; max-width: 100%; border: 2px dashed #ccc; background: #fff; overflow: hidden; }
+
+        .preview-container {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+            border: 2px dashed #ccc;
+            background: #fff;
+            overflow: hidden;
+        }
         #template-preview { max-width: 100%; height: auto; display: block; }
-        #qr-box { position: absolute; border: 2px solid #00d25b; background-color: rgba(0, 210, 91, 0.3); display: none; pointer-events: none; }
+
+        /* مربع QR الأخضر */
+        #qr-box {
+            position: absolute;
+            border: 2px solid #00d25b;
+            background-color: rgba(0, 210, 91, 0.25);
+            display: none;
+            pointer-events: none;
+        }
+
+        /* مؤشر موضع الاسم الوردي */
+        #name-marker {
+            position: absolute;
+            border: 2px dashed #e83e8c;
+            background-color: rgba(232, 62, 140, 0.15);
+            display: none;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+            padding: 3px 10px;
+            font-size: 13px;
+            color: #c0006a;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -22,20 +53,24 @@
 
 <div class="container bg-white p-4 rounded shadow-sm mb-4">
     <div class="row">
-        <!-- قسم التحكم -->
-        <div class="col-md-5 border-left">
+
+        <!-- ── قسم التحكم ─────────────────────────────────────────────── -->
+        <div class="col-md-5">
             <h4 class="mb-3 text-primary">1. إعدادات المناسبة والضيوف</h4>
             <form action="/generate" method="POST" enctype="multipart/form-data">
+
                 <div class="mb-3">
-                    <label class="form-label font-weight-bold">رفع قالب الدعوة (صورة):</label>
+                    <label class="form-label fw-bold">رفع قالب الدعوة (صورة):</label>
                     <input type="file" name="template" id="template-input" class="form-control" accept="image/*" required>
                 </div>
+
                 <div class="mb-3">
                     <label class="form-label">قائمة الضيوف (اسم واحد في كل سطر):</label>
-                    <textarea name="guests" class="form-control" rows="5" placeholder="أحمد الغامدي&#10;خالد سعيد&#10;سارة العبدالله" required></textarea>
+                    <textarea name="guests" class="form-control" rows="5"
+                        placeholder="أحمد الغامدي&#10;خالد سعيد&#10;سارة العبدالله" required></textarea>
                 </div>
-                
-                <h5 class="mt-4 text-secondary">⚙️ أبعاد وموقع الـ QR Code</h5>
+
+                <h5 class="mt-4 text-secondary">⚙️ موقع وأبعاد الـ QR Code</h5>
                 <div class="row">
                     <div class="col-6 mb-3">
                         <label class="form-label">الإحداثي الأفقي (X):</label>
@@ -50,24 +85,82 @@
                         <input type="number" name="qr_size" id="qr_size" class="form-control" value="120">
                     </div>
                 </div>
-                
-                <button type="submit" class="btn btn-success w-100 py-2 mt-2 font-weight-bold">🔥 توليد الكروت وتحميل ملف ZIP</button>
+
+                <hr>
+
+                <h5 class="text-secondary">✍️ إعدادات طباعة اسم الضيف على الكرت</h5>
+                <div class="mb-3 form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="show_name"
+                           id="show_name" value="true">
+                    <label class="form-check-label" for="show_name">
+                        تفعيل طباعة اسم الضيف على الكرت
+                    </label>
+                </div>
+
+                <div id="name-settings" style="display:none;">
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">إحداثي الاسم (X):</label>
+                            <input type="number" name="name_x" id="name_x" class="form-control" value="400">
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">إحداثي الاسم (Y):</label>
+                            <input type="number" name="name_y" id="name_y" class="form-control" value="300">
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">حجم الخط (بكسل):</label>
+                            <input type="number" name="font_size" id="font_size" class="form-control" value="40">
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">لون الخط:</label>
+                            <input type="color" name="font_color" id="font_color"
+                                   class="form-control form-control-color" value="#000000" style="height:38px;">
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label class="form-label">محاذاة النص:</label>
+                            <select name="name_anchor" class="form-select">
+                                <option value="center">⬛ توسيط حول النقطة</option>
+                                <option value="right">◀️ محاذاة يمين</option>
+                                <option value="left">▶️ محاذاة يسار</option>
+                            </select>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label class="form-label">رفع ملف خط عربي (اختياري، TTF/OTF):</label>
+                            <input type="file" name="font_file" class="form-control" accept=".ttf,.otf">
+                            <small class="text-muted">
+                                للحصول على خط عربي احترافي:
+                                <a href="https://fonts.google.com/?subset=arabic" target="_blank">Google Fonts</a>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-success w-100 py-2 mt-2 fw-bold">
+                    🔥 توليد الكروت وتحميل ملف ZIP
+                </button>
             </form>
         </div>
 
-        <!-- قسم المعاينة الحية -->
+        <!-- ── قسم المعاينة الحية ─────────────────────────────────────── -->
         <div class="col-md-7 text-center">
             <h4 class="mb-3 text-secondary text-start">2. المعاينة التفاعلية الحية</h4>
-            <div class="preview-container">
+            <div class="preview-container" id="preview-container">
                 <img id="template-preview" src="#" alt="قم برفع صورة لرؤية المعاينة هنا">
                 <div id="qr-box"></div>
+                <div id="name-marker">اسم الضيف</div>
             </div>
-            <p class="text-muted small mt-2">المربع الأخضر يوضح موضع الباركود النهائي الذي سيتم طباعته على الكرت.</p>
+            <p class="text-muted small mt-2">
+                🟩 المربع الأخضر = موضع الباركود &nbsp;|&nbsp;
+                🟥 الإطار الوردي = موضع الاسم
+            </p>
+            <p class="text-info small">
+                ℹ️ المعاينة تُحاكي الصورة الأصلية بدقة — المواضع مُعايَرة تلقائياً.
+            </p>
         </div>
     </div>
 </div>
 
-<!-- لوحة إدارة الحضور والضيوف اللحظية -->
+<!-- ── لوحة إدارة الحضور ─────────────────────────────────────────────── -->
 <div class="container bg-white p-4 rounded shadow-sm mb-5">
     <h4 class="mb-3 text-dark">📊 نظام إدارة الضيوف والاستقبال (Live Status)</h4>
     <div class="table-responsive">
@@ -82,7 +175,7 @@
             </thead>
             <tbody id="guests-table-body">
                 <tr>
-                    <td colspan="4" class="text-center text-muted">لا يوجد ضيوف مضافين حالياً للمناسبة.</td>
+                    <td colspan="4" class="text-center text-muted">لا يوجد ضيوف مضافين حالياً.</td>
                 </tr>
             </tbody>
         </table>
@@ -90,66 +183,105 @@
 </div>
 
 <script>
-    // نظام المعاينة الحية للموقع والأبعاد
-    const templateInput = document.getElementById('template-input');
-    const previewImg = document.getElementById('template-preview');
-    const qrBox = document.getElementById('qr-box');
-    
-    const qrXInput = document.getElementById('qr_x');
-    const qrYInput = document.getElementById('qr_y');
-    const qrSizeInput = document.getElementById('qr_size');
+    const templateInput  = document.getElementById('template-input');
+    const previewImg     = document.getElementById('template-preview');
+    const qrBox          = document.getElementById('qr-box');
+    const nameMarker     = document.getElementById('name-marker');
+    const nameSettings   = document.getElementById('name-settings');
+    const showNameCb     = document.getElementById('show_name');
 
-    templateInput.addEventListener('change', function() {
+    const qrXInput   = document.getElementById('qr_x');
+    const qrYInput   = document.getElementById('qr_y');
+    const qrSizeInput = document.getElementById('qr_size');
+    const nameXInput  = document.getElementById('name_x');
+    const nameYInput  = document.getElementById('name_y');
+
+    // ── [إصلاح 1] تخزين الأبعاد الحقيقية للصورة ──────────────────────
+    let naturalWidth  = 0;
+    let naturalHeight = 0;
+
+    templateInput.addEventListener('change', function () {
         const file = this.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                previewImg.src = e.target.value; // تحديث تمويهي احتياطي
-                previewImg.setAttribute('src', e.target.result);
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            // ✅ الإصلاح: استخدام e.target.result فقط (حُذف السطر الخاطئ e.target.value)
+            previewImg.setAttribute('src', e.target.result);
+
+            previewImg.onload = function () {
+                naturalWidth  = previewImg.naturalWidth;
+                naturalHeight = previewImg.naturalHeight;
                 qrBox.style.display = 'block';
-                updateQrBoxPosition();
-            }
-            reader.readAsDataURL(file);
-        }
+                updatePreview();
+            };
+        };
+        reader.readAsDataURL(file);
     });
 
-    function updateQrBoxPosition() {
-        qrBox.style.left = qrXInput.value + 'px';
-        qrBox.style.top = qrYInput.value + 'px';
-        qrBox.style.width = qrSizeInput.value + 'px';
-        qrBox.style.height = qrSizeInput.value + 'px';
+    // ── [إصلاح 2] حساب نسبة التكبير لمطابقة الصورة الأصلية ───────────
+    function getScale() {
+        if (!naturalWidth || !naturalHeight) return { sx: 1, sy: 1 };
+        return {
+            sx: previewImg.offsetWidth  / naturalWidth,
+            sy: previewImg.offsetHeight / naturalHeight
+        };
     }
 
-    [qrXInput, qrYInput, qrSizeInput].forEach(input => {
-        input.addEventListener('input', updateQrBoxPosition);
+    function updatePreview() {
+        const { sx, sy } = getScale();
+
+        // تحديث مربع QR مُعايَر
+        qrBox.style.left   = (parseInt(qrXInput.value   || 0) * sx) + 'px';
+        qrBox.style.top    = (parseInt(qrYInput.value   || 0) * sy) + 'px';
+        qrBox.style.width  = (parseInt(qrSizeInput.value || 0) * sx) + 'px';
+        qrBox.style.height = (parseInt(qrSizeInput.value || 0) * sy) + 'px';
+
+        // ── [إصلاح 3] تحديث مؤشر الاسم ─────────────────────────────
+        if (showNameCb.checked && naturalWidth) {
+            nameMarker.style.left    = (parseInt(nameXInput.value || 0) * sx) + 'px';
+            nameMarker.style.top     = (parseInt(nameYInput.value || 0) * sy) + 'px';
+            nameMarker.style.display = 'block';
+        } else {
+            nameMarker.style.display = 'none';
+        }
+    }
+
+    // ربط كل الحقول بالمعاينة الفورية
+    [qrXInput, qrYInput, qrSizeInput, nameXInput, nameYInput].forEach(inp => {
+        inp.addEventListener('input', updatePreview);
     });
 
-    // جلب قائمة الضيوف وتحديث حالتها دورياً عبر الـ API
+    // إظهار/إخفاء إعدادات الاسم عند تفعيل الـ Toggle
+    showNameCb.addEventListener('change', function () {
+        nameSettings.style.display = this.checked ? 'block' : 'none';
+        updatePreview();
+    });
+
+    // إعادة حساب عند تغيير حجم النافذة
+    window.addEventListener('resize', updatePreview);
+
+    // ── جلب قائمة الضيوف وتحديثها كل 4 ثوان ─────────────────────────
     function loadGuests() {
         fetch('/api/guests')
             .then(res => res.json())
             .then(data => {
                 const tbody = document.getElementById('guests-table-body');
-                if(data.length === 0) return;
-                
+                if (data.length === 0) return;
                 tbody.innerHTML = '';
                 data.forEach(g => {
-                    const statusBadge = g.is_checked_in 
-                        ? '<span class="badge bg-success">🟢 تم الحضور</span>' 
+                    const badge = g.is_checked_in
+                        ? '<span class="badge bg-success">🟢 تم الحضور</span>'
                         : '<span class="badge bg-warning text-dark">⏳ لم يحضر بعد</span>';
-                    
-                    const row = `<tr>
+                    tbody.innerHTML += `<tr>
                         <td><code>${g.id}</code></td>
                         <td><strong>${g.name}</strong></td>
-                        <td>${statusBadge}</td>
+                        <td>${badge}</td>
                         <td><span class="badge bg-secondary">${g.scan_count} مرات</span></td>
                     </tr>`;
-                    tbody.innerHTML += row;
                 });
             });
     }
 
-    // تحديث الجدول تلقائياً كل 4 ثوانٍ لمحاكاة الاستقبال الحي للبوابة
     setInterval(loadGuests, 4000);
     window.onload = loadGuests;
 </script>

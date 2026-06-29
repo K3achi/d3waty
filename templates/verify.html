@@ -18,7 +18,7 @@
         <div class="icon-state text-success">✅</div>
         <h2 class="text-success mb-3">أهلاً بك، تفضل!</h2>
         <p class="fs-4">تم تسجيل دخول الضيف بنجاح:</p>
-        <div class="alert alert-success fs-3 font-weight-bold">{{ name }}</div>
+        <div class="alert alert-success fs-3 fw-bold">{{ name }}</div>
         <p class="text-muted">الوضع: دعوة صالحة ومؤكدة لأول مرة.</p>
 
     {% elif status == 'duplicate' %}
@@ -26,7 +26,7 @@
         <h2 class="text-warning mb-3">تنبيه: ممسوح مسبقاً!</h2>
         <p class="fs-5">الكرت الخاص بالضيف تم استخدامه للدخول من قبل:</p>
         <div class="alert alert-warning fs-4">{{ name }}</div>
-        <p class="text-danger font-weight-bold">إجمالي عدد مرات قراءة الكود: {{ scan_count }}</p>
+        <p class="text-danger fw-bold">إجمالي عدد مرات قراءة الكود: {{ scan_count }}</p>
         <small class="text-muted">يرجى التأكد من هوية الشخص الحامل للكرت لمنع التزوير.</small>
 
     {% else %}
@@ -35,7 +35,7 @@
         <div class="alert alert-danger fs-5">تنبيه: كود الدعوة هذا مزور أو لا ينتمي للمنظومة التابعة للمنصة.</div>
         <p class="text-muted">يرجى منع حامل الكرت من الدخول ومراجعة الإدارة.</p>
     {% endif %}
-    
+
     <hr class="my-4">
     <small class="text-secondary">نظام حماية وإدارة المناسبات الذكي بواسطة <b>دعوتي</b></small>
 </div>
