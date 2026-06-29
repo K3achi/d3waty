@@ -58,7 +58,7 @@ def reshape_arabic(text):
     """إعادة تشكيل النص العربي لعرضه صحيحاً على الصور"""
     try:
         reshaped = arabic_reshaper.reshape(text)
-        return get_display(reshaped)
+        return reshaped
     except Exception:
         return text
 
